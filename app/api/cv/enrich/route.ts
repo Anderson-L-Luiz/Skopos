@@ -15,7 +15,7 @@ export async function POST() {
     return NextResponse.json({ error: "Profile not found. Please save your profile first." }, { status: 404 });
   }
 
-  const enriched = enrichProfile(
+  const enriched = await enrichProfile(
     profile.linkedinUrl || undefined,
     profile.githubUrl || undefined,
     profile.scholarUrl || undefined

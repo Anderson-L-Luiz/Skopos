@@ -1,0 +1,93 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  name          String?
+  password      String
+  createdAt     DateTime  @default(now())
+  profile       Profile?
+  applications  Application[]
+  sessions      Session[]
+  jobMatches    JobMatch[]
+}
+
+model Profile {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  user            User     @relation(fields: [userId], references: [id])
+  headline        String?
+  summary         String?
+  currentRole     String?
+  yearsExp        Int?
+  skills          String   @default("[]")
+  cvRaw           String?
+  cvFile          String?
+  linkedinUrl     String?
+  githubUrl       String?
+  scholarUrl      String?
+  twitterUrl      String?
+  instagramUrl    String?
+  enrichedData    String?
+  brandScore      Int?
+  updatedAt       DateTime @updatedAt
+}
+
+model Job {
+  id            String   @id @default(cuid())
+  externalId    String?
+  title         String
+  company       String
+  location      String?
+  remote        Boolean  @default(false)
+  salaryMin     Int?
+  salaryMax     Int?
+  description   String
+  skills        String   @default("[]")
+  source        String
+  sourceUrl     String?
+  trustScore    Float    @default(0.5)
+  postedAt      DateTime?
+  scrapedAt     DateTime @default(now())
+  applications  Application[]
+  matches       JobMatch[]
+}
+
+model JobMatch {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id])
+  jobId         String
+  job           Job      @relation(fields: [jobId], references: [id])
+  score         Int
+  category      String
+  gapAnalysis   String   @default("{}")
+  createdAt     DateTime @default(now())
+}
+
+model Application {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  jobId       String
+  job         Job      @relation(fields: [jobId], references: [id])
+  status      String   @default("saved")
+  notes       String?
+  appliedAt   DateTime?
+  createdAt   DateTime @default(now())
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  user         User     @relation(fields: [userId], references: [id])
+  expires      DateTime
+}

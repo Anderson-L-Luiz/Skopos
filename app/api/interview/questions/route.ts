@@ -1,6 +1,7 @@
 import { NextResponse, NextRequest } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
 import type { InterviewQuestion } from "@/types";
 
 const questionBank: Record<string, InterviewQuestion[]> = {
@@ -32,6 +33,138 @@ const questionBank: Record<string, InterviewQuestion[]> = {
   ],
 };
 
+function generateRoleSpecificQuestions(
+  jobTitle: string,
+  company: string,
+  requiredSkills: string[]
+): InterviewQuestion[] {
+  const questions: InterviewQuestion[] = [];
+  let idCounter = 1000;
+
+  // Company-specific behavioral questions
+  questions.push({
+    id: `company_${idCounter++}`,
+    question: `Why do you want to work at ${company} specifically?`,
+    category: "company",
+    difficulty: "easy",
+    tips: "Research the company's mission, values, recent news, and products. Connect their goals to your career aspirations.",
+  });
+
+  questions.push({
+    id: `company_${idCounter++}`,
+    question: `What do you know about ${company}'s product and industry position, and how would you contribute?`,
+    category: "company",
+    difficulty: "medium",
+    tips: "Show genuine interest in their business. Mention specific products, features, or strategic initiatives.",
+  });
+
+  // Role-specific technical questions based on job title and skills
+  const skillQuestions: Record<string, InterviewQuestion[]> = {
+    react: [
+      {
+        id: `tech_${idCounter++}`,
+        question: "How would you optimize performance in a large React application?",
+        category: "technical",
+        difficulty: "medium",
+        tips: "Discuss React.memo, useMemo, useCallback, code splitting, lazy loading, and Suspense boundaries.",
+      },
+      {
+        id: `tech_${idCounter++}`,
+        question: "Explain the difference between controlled and uncontrolled components.",
+        category: "technical",
+        difficulty: "medium",
+        tips: "Controlled components manage state in React, uncontrolled components rely on DOM. Discuss when to use each.",
+      },
+    ],
+    typescript: [
+      {
+        id: `tech_${idCounter++}`,
+        question: "How do you use TypeScript generics to write flexible and reusable code?",
+        category: "technical",
+        difficulty: "medium",
+        tips: "Provide examples of generic functions, interfaces, and constraints. Discuss utility types like Omit, Pick, Record.",
+      },
+    ],
+    python: [
+      {
+        id: `tech_${idCounter++}`,
+        question: "Explain decorators in Python and provide a real-world use case.",
+        category: "technical",
+        difficulty: "medium",
+        tips: "Show understanding of closures, functional programming, and how decorators modify function behavior.",
+      },
+    ],
+    nodejs: [
+      {
+        id: `tech_${idCounter++}`,
+        question: "How does the Node.js event loop work and how would you avoid blocking it?",
+        category: "technical",
+        difficulty: "hard",
+        tips: "Discuss microtasks, macrotasks, async/await, callbacks, and the dangers of CPU-intensive synchronous operations.",
+      },
+    ],
+    aws: [
+      {
+        id: `tech_${idCounter++}`,
+        question: "How would you design a scalable application architecture on AWS?",
+        category: "technical",
+        difficulty: "hard",
+        tips: "Discuss EC2, Lambda, RDS, DynamoDB, S3, CloudFront, auto-scaling, and high availability patterns.",
+      },
+    ],
+    docker: [
+      {
+        id: `tech_${idCounter++}`,
+        question: "Explain Docker best practices for creating efficient container images.",
+        category: "technical",
+        difficulty: "medium",
+        tips: "Discuss multi-stage builds, layer caching, minimizing image size, security, and Docker Compose.",
+      },
+    ],
+    sql: [
+      {
+        id: `tech_${idCounter++}`,
+        question: "How would you optimize a slow database query with millions of records?",
+        category: "technical",
+        difficulty: "medium",
+        tips: "Discuss indexing strategies, query execution plans, denormalization, and query refactoring.",
+      },
+    ],
+  };
+
+  // Add skill-specific questions
+  for (const skill of requiredSkills) {
+    const skillLower = skill.toLowerCase();
+    if (skillLower in skillQuestions) {
+      const sq = skillQuestions[skillLower as keyof typeof skillQuestions];
+      questions.push(...sq.slice(0, 1)); // Add first question for each skill
+    }
+  }
+
+  // Role-specific behavioral questions
+  if (jobTitle.toLowerCase().includes("senior") || jobTitle.toLowerCase().includes("lead")) {
+    questions.push({
+      id: `behavioral_${idCounter++}`,
+      question: "Tell me about a time you led a technical initiative or mentored a junior engineer.",
+      category: "behavioral",
+      difficulty: "medium",
+      tips: "Focus on impact, growth of others, and how you balanced mentoring with delivery.",
+    });
+  }
+
+  if (jobTitle.toLowerCase().includes("full stack") || jobTitle.toLowerCase().includes("engineer")) {
+    questions.push({
+      id: `behavioral_${idCounter++}`,
+      question: "Describe a time you had to work on both frontend and backend to solve a problem.",
+      category: "behavioral",
+      difficulty: "medium",
+      tips: "Show how you approach system-wide thinking and collaboration across different domains.",
+    });
+  }
+
+  return questions;
+}
+
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -39,14 +172,38 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const category = searchParams.get("category") || "all";
   const difficulty = searchParams.get("difficulty") || "all";
+  const role = searchParams.get("role");
+  const jobId = searchParams.get("jobId");
 
   let questions: InterviewQuestion[] = [];
 
-  if (category === "all") {
-    questions = Object.values(questionBank).flat();
-  } else {
-    questions = questionBank[category] || [];
+  // Fetch role-specific questions if jobId is provided
+  if (jobId) {
+    try {
+      const job = await prisma.job.findUnique({
+        where: { id: jobId },
+      });
+
+      if (job) {
+        const skills = Array.isArray(job.skills) ? job.skills : JSON.parse(job.skills || "[]");
+        const roleSpecificQuestions = generateRoleSpecificQuestions(job.title, job.company, skills);
+        questions = [...roleSpecificQuestions];
+      }
+    } catch (error) {
+      console.error("Error fetching job details:", error);
+    }
   }
+
+  // Add generic questions from question bank
+  let genericQuestions: InterviewQuestion[] = [];
+  if (category === "all") {
+    genericQuestions = Object.values(questionBank).flat();
+  } else {
+    genericQuestions = questionBank[category] || [];
+  }
+
+  // Combine role-specific and generic questions
+  questions = [...questions, ...genericQuestions];
 
   if (difficulty !== "all") {
     questions = questions.filter((q) => q.difficulty === difficulty);

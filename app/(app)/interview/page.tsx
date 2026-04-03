@@ -1,8 +1,9 @@
 "use client";
 import { useEffect, useState } from "react";
 import { Header } from "@/components/layout/Header";
-import { Loader2, ChevronDown, ChevronUp, ArrowRight, GraduationCap, TrendingUp, DollarSign } from "lucide-react";
+import { Loader2, ChevronDown, ChevronUp, ArrowRight, GraduationCap, TrendingUp, DollarSign, ExternalLink, BookOpen, Clock } from "lucide-react";
 import type { InterviewQuestion, CareerPathStep } from "@/types";
+import type { CourseRecommendation } from "@/lib/career/courseRecommender";
 import { cn } from "@/lib/utils";
 
 const difficultyConfig = {
@@ -26,27 +27,42 @@ export default function InterviewPage() {
     path: CareerPathStep[];
     estimatedYears: number;
   } | null>(null);
+  const [courses, setCourses] = useState<CourseRecommendation[]>([]);
+  const [jobs, setJobs] = useState<any[]>([]);
   const [loadingQ, setLoadingQ] = useState(true);
   const [loadingPath, setLoadingPath] = useState(true);
+  const [loadingCourses, setLoadingCourses] = useState(false);
   const [category, setCategory] = useState("all");
   const [difficulty, setDifficulty] = useState("all");
+  const [selectedJobId, setSelectedJobId] = useState<string>("");
   const [expandedQ, setExpandedQ] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"questions" | "career">("questions");
+  const [activeTab, setActiveTab] = useState<"questions" | "career" | "courses">("questions");
 
   useEffect(() => {
     fetchQuestions();
     fetchCareerPath();
+    fetchJobs();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
     fetchQuestions();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [category, difficulty]);
+  }, [category, difficulty, selectedJobId]);
+
+  useEffect(() => {
+    if (activeTab === "courses") {
+      fetchCoursesForMissingSkills();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab]);
 
   const fetchQuestions = async () => {
     setLoadingQ(true);
     const params = new URLSearchParams({ category, difficulty });
+    if (selectedJobId) {
+      params.append("jobId", selectedJobId);
+    }
     const res = await fetch(`/api/interview/questions?${params}`);
     if (res.ok) {
       const data = await res.json();
@@ -62,6 +78,59 @@ export default function InterviewPage() {
     setLoadingPath(false);
   };
 
+  const fetchJobs = async () => {
+    try {
+      const res = await fetch("/api/matches");
+      if (res.ok) {
+        const data = await res.json();
+        setJobs(data || []);
+      }
+    } catch (error) {
+      console.error("Error fetching jobs:", error);
+    }
+  };
+
+  const fetchCoursesForMissingSkills = async () => {
+    setLoadingCourses(true);
+    try {
+      let missingSkills: string[] = [];
+
+      // Get missing skills from selected job or all matches
+      if (selectedJobId && jobs.length > 0) {
+        const job = jobs.find((j) => j.jobId === selectedJobId);
+        if (job?.gapAnalysis?.missingSkills) {
+          missingSkills = job.gapAnalysis.missingSkills;
+        }
+      } else if (jobs.length > 0) {
+        // Aggregate missing skills from top matches
+        const skillSet = new Set<string>();
+        jobs.slice(0, 5).forEach((job) => {
+          if (job.gapAnalysis?.missingSkills) {
+            job.gapAnalysis.missingSkills.forEach((skill: string) => skillSet.add(skill));
+          }
+        });
+        missingSkills = Array.from(skillSet);
+      }
+
+      if (missingSkills.length > 0) {
+        const params = new URLSearchParams({
+          skills: missingSkills.join(","),
+        });
+        const res = await fetch(`/api/career/courses?${params}`);
+        if (res.ok) {
+          const data = await res.json();
+          setCourses(data.recommendations || []);
+        }
+      } else {
+        setCourses([]);
+      }
+    } catch (error) {
+      console.error("Error fetching courses:", error);
+    } finally {
+      setLoadingCourses(false);
+    }
+  };
+
   const selectClass = "h-9 pl-3 pr-8 rounded-lg border border-slate-200 bg-white text-sm text-slate-700 font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 appearance-none cursor-pointer transition-all";
 
   return (
@@ -74,6 +143,7 @@ export default function InterviewPage() {
           {[
             { key: "questions" as const, label: "Interview Questions", icon: GraduationCap },
             { key: "career" as const, label: "Career Path", icon: TrendingUp },
+            { key: "courses" as const, label: "Skill Courses", icon: BookOpen },
           ].map((tab) => (
             <button
               key={tab.key}
@@ -96,6 +166,20 @@ export default function InterviewPage() {
           <div className="space-y-4 max-w-3xl">
             {/* Filters */}
             <div className="flex flex-wrap gap-3 items-center bg-white rounded-xl border border-slate-100 shadow-card p-4">
+              <div className="relative">
+                <select value={selectedJobId} onChange={(e) => setSelectedJobId(e.target.value)} className={selectClass}>
+                  <option value="">All Roles</option>
+                  {jobs.map((job) => (
+                    <option key={job.jobId} value={job.jobId}>
+                      {job.job.title} @ {job.job.company}
+                    </option>
+                  ))}
+                </select>
+                <div className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2">
+                  <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+                </div>
+              </div>
+
               <div className="relative">
                 <select value={category} onChange={(e) => setCategory(e.target.value)} className={selectClass}>
                   <option value="all">All Categories</option>
@@ -178,6 +262,90 @@ export default function InterviewPage() {
                     </div>
                   );
                 })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Skill Courses tab */}
+        {activeTab === "courses" && (
+          <div className="max-w-3xl space-y-4">
+            {loadingCourses ? (
+              <div className="flex items-center justify-center h-48">
+                <Loader2 className="w-6 h-6 animate-spin text-indigo-500" />
+              </div>
+            ) : courses.length > 0 ? (
+              <div className="space-y-4">
+                <div className="bg-white rounded-xl border border-slate-100 shadow-card p-4">
+                  <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Skill Gap Courses</p>
+                  <p className="text-sm text-slate-600">Recommended courses to fill your skill gaps</p>
+                </div>
+
+                {courses.map((recommendation) => (
+                  <div key={recommendation.skillName} className="bg-white rounded-xl border border-slate-100 shadow-card overflow-hidden">
+                    <div className="p-4 border-b border-slate-50">
+                      <h3 className="font-semibold text-slate-900 capitalize">{recommendation.skillName}</h3>
+                    </div>
+
+                    <div className="divide-y divide-slate-50">
+                      {recommendation.courses.map((course, idx) => (
+                        <div key={idx} className="p-4 hover:bg-slate-50/50 transition-colors">
+                          <div className="flex items-start justify-between gap-4">
+                            <div className="flex-1 min-w-0">
+                              <h4 className="text-sm font-semibold text-slate-900 mb-2">{course.title}</h4>
+
+                              <div className="flex items-center gap-2 flex-wrap mb-3">
+                                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-blue-50 text-blue-700 text-xs font-medium">
+                                  {course.platform}
+                                </span>
+                                <span
+                                  className={cn(
+                                    "inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium",
+                                    course.type === "free"
+                                      ? "bg-emerald-50 text-emerald-700"
+                                      : "bg-amber-50 text-amber-700"
+                                  )}
+                                >
+                                  {course.type === "free" ? "Free" : "Paid"}
+                                </span>
+
+                                {course.estimatedHours > 0 && (
+                                  <span className="inline-flex items-center gap-1 text-xs text-slate-500">
+                                    <Clock className="w-3 h-3" />
+                                    {course.estimatedHours < 1
+                                      ? `${Math.round(course.estimatedHours * 60)}m`
+                                      : `${course.estimatedHours}h`}
+                                  </span>
+                                )}
+                              </div>
+
+                              <p className="text-xs text-slate-500 mb-3">
+                                Learn at your own pace on {course.platform}
+                              </p>
+                            </div>
+
+                            <a
+                              href={course.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="shrink-0 inline-flex items-center justify-center w-10 h-10 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition-colors"
+                              title="Open course"
+                            >
+                              <ExternalLink className="w-4 h-4" />
+                            </a>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center py-16 gap-4">
+                <BookOpen className="w-10 h-10 text-slate-200" />
+                <p className="text-sm text-slate-400">
+                  No skill gaps identified. {jobs.length === 0 ? "Complete some job matches to see course recommendations." : "Great job - no missing skills!"}
+                </p>
               </div>
             )}
           </div>

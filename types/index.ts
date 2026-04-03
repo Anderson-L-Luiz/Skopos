@@ -144,3 +144,43 @@ export interface CareerPathStep {
   salaryRange: string;
   description: string;
 }
+
+export interface Application {
+  id: string;
+  userId: string;
+  jobId: string;
+  status: 'saved' | 'applied' | 'interviewing' | 'offered' | 'rejected';
+  notes?: string | null;
+  appliedAt?: Date | null;
+  createdAt: Date;
+  job?: JobListing;
+}
+
+export type ContentPlatform = "LinkedIn" | "Twitter" | "GitHub" | "Blog";
+export type ContentType = "post" | "article" | "code" | "thread";
+
+export interface ContentItem {
+  day: "Monday" | "Tuesday" | "Wednesday" | "Thursday" | "Friday";
+  platform: ContentPlatform;
+  contentType: ContentType;
+  topic: string;
+  description: string;
+  hashtags: string[];
+  bestTimeToPost: string;
+}
+
+export interface ContentWeek {
+  week: number;
+  startDate: Date;
+  items: ContentItem[];
+}
+
+export interface ContentCalendar {
+  weeks: ContentWeek[];
+  generatedAt: Date;
+  profile: {
+    currentRole?: string | null;
+    skills: string[];
+    yearsExp?: number | null;
+  };
+}

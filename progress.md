@@ -4,7 +4,7 @@
 
 ---
 
-## ✅ Completed
+## Completed
 
 ### Infrastructure & Setup
 - [x] Next.js 14 App Router project with TypeScript
@@ -16,6 +16,11 @@
 - [x] Demo account: `demo@skopos.dev` / `password123`
 - [x] Protected app layout (auth guard, redirect to login)
 - [x] `.env` with `DATABASE_URL`, `NEXTAUTH_SECRET`, `NEXTAUTH_URL`
+- [x] `.env.example` template for easy setup
+- [x] API rate limiting (in-memory, per-IP) on auth, scraping, scoring, and analysis routes
+- [x] Docker setup — `Dockerfile` (multi-stage) + `docker-compose.yml` for self-hosting
+- [x] CI/CD pipeline — GitHub Actions for lint, typecheck, and build on every push/PR
+- [x] `.dockerignore` for optimized Docker builds
 
 ### Feature 1 — Job Aggregation Engine
 - [x] Mock scrapers for Indeed, LinkedIn, Glassdoor (`lib/scrapers/jobScraper.ts`)
@@ -24,45 +29,65 @@
 - [x] Deduplication by company + title
 - [x] Source trust score ranking
 - [x] `GET /api/jobs` — filterable by search, source, remote, min salary, pagination
-- [x] `POST /api/jobs/scrape` — trigger job refresh
+- [x] `POST /api/jobs/scrape` — trigger job refresh (rate limited: 5 req/min)
 - [x] `GET /api/jobs/[id]` — single job detail
 - [x] Jobs page UI: filter bar, job cards with company avatars, staggered animations, pagination
+- [x] Redesigned job detail page: company avatar, gradient accents, trust score, polished layout
 
 ### Feature 2 — Smart CV Builder
-- [x] CV upload endpoint (`POST /api/cv/upload`) — accepts PDF/DOCX
+- [x] CV upload endpoint (`POST /api/cv/upload`) — accepts PDF/DOCX with real text extraction
+- [x] Real PDF parsing using pdf-parse for text extraction
+- [x] Real DOCX parsing using mammoth for text extraction
 - [x] Profile enrichment (`POST /api/cv/enrich`) — scrapes LinkedIn, GitHub, Google Scholar URLs
-- [x] Mock profile scraper (`lib/scrapers/profileScraper.ts`) — generates enriched data from URLs
+- [x] Real GitHub API integration — fetches repos, stars, languages, contributions from public API
+- [x] Mock LinkedIn/Scholar scrapers with fallback data
 - [x] `GET /api/cv` + `PUT /api/cv` — read/update profile
-- [x] CV Builder page: edit form (headline, role, years exp, summary), skills manager, social links
+- [x] ATS Optimization Score (`POST /api/cv/ats-score`) — keyword matching, section analysis, formatting checks
+- [x] CV Export (`GET /api/cv/export`) — generates professional HTML CV for print/PDF
+- [x] CV Builder page: edit form, skills manager, social links, ATS scoring tab, export button
 - [x] CV Preview tab: displays enriched LinkedIn, GitHub, Scholar data
-- [x] CVUploader component: drag-and-drop with upload states
+- [x] CVUploader component: drag-and-drop with upload states, raw text preview
 
 ### Feature 3 — Match & Approval Scoring
 - [x] Match scoring algorithm (`lib/scoring/matchScorer.ts`)
   - Skill overlap (40%), experience level (30%), location/remote (20%), salary (10%)
-- [x] Job categories: **Open** (score ≥ 70), **Within Reach** (40–69), **Stretch** (< 40)
+- [x] Job categories: **Open** (score >= 70), **Within Reach** (40–69), **Stretch** (< 40)
 - [x] Gap analysis: strengths list + missing skills per job
 - [x] `GET /api/matches` — fetch all scored matches
-- [x] `POST /api/matches/score-all` — score all jobs against current profile
+- [x] `POST /api/matches/score-all` — score all jobs against current profile (rate limited: 5 req/min)
 - [x] `POST /api/matches/score/[jobId]` — score a single job
-- [x] Matches page: SVG score rings, category summary cards, filterable tab bar
+- [x] Matches page: SVG score rings, category summary cards, filterable tab bar, **pagination (18/page)**
 
 ### Feature 4 — Personal Brand & PR Advisor
 - [x] Brand analyzer (`lib/brand/brandAnalyzer.ts`)
   - Scores: LinkedIn presence, GitHub activity, content frequency, engagement, portfolio quality
-- [x] `POST /api/brand/analyze` — run full analysis
+- [x] `POST /api/brand/analyze` — run full analysis (rate limited: 10 req/min)
 - [x] `GET /api/brand/analysis` — fetch last analysis
 - [x] Brand score stored on user profile
 - [x] Brand page UI: platform cards, animated loading state, full analysis report
 - [x] BrandAnalysis component: SVG score ring, gradient breakdown bars, recommendations, content strategy, portfolio suggestions
+- [x] Content Calendar (`GET /api/brand/calendar`) — 4-week personalized content plan
+- [x] ContentCalendar component: weekly view, platform-coded items, hashtags, posting times
 
 ### Feature 5 — Interview Prep & Career Path
 - [x] Interview question bank (`GET /api/interview/questions`) — filterable by category + difficulty
   - Categories: behavioral, technical, company fit, coding
   - Difficulties: easy, medium, hard
-- [x] Career path model (`GET /api/career/path`) — trajectory from current → target role
+- [x] Role-specific interview questions — generate tailored questions from job descriptions and required skills
+- [x] Career path model (`GET /api/career/path`) — trajectory from current to target role
   - Steps with role, timeframe, salary range, required skills, description
-- [x] Interview page: question cards with expandable tips, numbered career timeline
+- [x] Skill gap course recommendations (`GET /api/career/courses`) — maps 30+ tech skills to Coursera, Udemy, YouTube, freeCodeCamp courses with real URLs
+- [x] Interview page: question cards with expandable tips, job selector dropdown, numbered career timeline
+- [x] Courses tab: skill-grouped recommendations with platform badges, free/paid indicators, estimated hours
+
+### Feature 6 — Application Tracking
+- [x] Application CRUD API (`GET/POST /api/applications`, `PUT/DELETE /api/applications/[id]`)
+- [x] Application statuses: saved, applied, interviewing, offered, rejected
+- [x] Kanban-style Applications page with status columns and count badges
+- [x] Inline status changes and notes editing
+- [x] TrackApplicationButton component (default + compact variants)
+- [x] Integrated into job cards and job detail page
+- [x] Applications added to sidebar navigation
 
 ### Dashboard
 - [x] `GET /api/dashboard/stats` — total jobs, matches, applications, brand score, match breakdown
@@ -80,23 +105,22 @@
 - [x] Redesigned sidebar: icon containers, sub-descriptions, user profile section
 - [x] Header: notification dropdown, subtitle, action slot
 - [x] Polished component library: Button, Card, Badge, Input, Tabs, Progress, Select, Textarea, Separator
-- [x] Dark mode toggle (localStorage-persisted)
+- [x] Dark mode toggle (localStorage-persisted) with full dark mode support across all components
 - [x] Responsive layout
+- [x] Dark mode fixes: sidebar, cards, and all pages use CSS variable-based theming
 
 ---
 
-## 🔄 In Progress / Partially Done
+## Remaining / Future Work
 
 ### Job Aggregation
-- [ ] **Real scraping** — current scrapers return mock data; integrate real APIs (Indeed Publisher API, LinkedIn Job Search API, Glassdoor API) or Puppeteer-based scrapers
+- [ ] **Real scraping** — integrate real APIs (Indeed Publisher API, LinkedIn Job Search API, Glassdoor API) or Puppeteer-based scrapers
 - [ ] **Scheduled scraping** — auto-refresh jobs on a cron schedule (every 6–12 hours)
 - [ ] **More sources** — add RemoteOK, HackerNews Jobs, WeWorkRemotely, Greenhouse
 
 ### CV Builder
-- [ ] **Real PDF parsing** — current upload stores filename only; integrate `pdf-parse` or `mammoth` to extract actual CV text
-- [ ] **ATS optimization score** — compare CV content against job descriptions, score keyword density
-- [ ] **CV export** — generate a formatted PDF CV from profile data (e.g. with `puppeteer` or `react-pdf`)
-- [ ] **Real web enrichment** — current scraper generates mock data; integrate LinkedIn scraping (Proxycurl API) and GitHub API
+- [ ] **Real web enrichment** — integrate LinkedIn scraping (Proxycurl API) and Google Scholar API
+- [ ] **CV template selection** — multiple CV templates/themes for export
 
 ### Authentication & Accounts
 - [ ] **OAuth providers** — add Google, LinkedIn, GitHub sign-in via NextAuth
@@ -106,30 +130,24 @@
 
 ### Match Scoring
 - [ ] **AI-powered scoring** — replace heuristic scorer with OpenAI / Claude API for semantic skill matching
-- [ ] **Application tracking** — mark jobs as Applied, Interviewing, Offered, Rejected with status updates
 - [ ] **Match history** — track how match scores change over time as profile improves
 
 ### Brand Advisor
 - [ ] **Real social scraping** — integrate Twitter/X API, LinkedIn API, Instagram Basic Display API
-- [ ] **GitHub real data** — use GitHub REST API to fetch actual repos, stars, contributions
-- [ ] **Content calendar** — generate a weekly content plan with suggested post topics and timing
 - [ ] **Competitor benchmarking** — compare brand score vs. industry peers
 
 ### Interview Prep
 - [ ] **Company intelligence** — fetch real company data (Crunchbase, LinkedIn Company API, news)
-- [ ] **Role-specific questions** — generate questions tailored to specific job descriptions
 - [ ] **AI mock interview** — conversational practice with Claude API, scoring responses
 - [ ] **Answer evaluation** — rate user's answer drafts against STAR methodology
 
 ### Career Path
 - [ ] **Real market data** — pull salary data from Glassdoor/Levels.fyi API
-- [ ] **Skill gap courses** — link missing skills to specific Coursera/Udemy/YouTube resources
 - [ ] **Industry trends** — show which skills are growing in demand
 
 ### Infrastructure
 - [ ] **Migrate to PostgreSQL** — swap SQLite for Postgres for production readiness
 - [ ] **File storage** — store uploaded CVs in S3/Cloudflare R2 instead of local filesystem
-- [ ] **Rate limiting** — protect API routes from abuse
 - [ ] **Error monitoring** — integrate Sentry
 - [ ] **Analytics** — page view and feature usage tracking
 - [ ] **Email notifications** — notify user when new matching jobs appear
@@ -137,24 +155,11 @@
 
 ### Deployment
 - [ ] **Vercel deployment** — configure `vercel.json`, switch to Postgres, set env vars
-- [ ] **Docker setup** — `Dockerfile` + `docker-compose.yml` for self-hosting
-- [ ] **CI/CD pipeline** — GitHub Actions for lint, typecheck, build on every PR
 - [ ] **Environment configs** — staging vs production env separation
 
 ---
 
-## 🐛 Known Issues
-
-- CV upload stores files in `/tmp` (ephemeral) — needs persistent storage (S3)
-- Brand analysis is fully mocked — scores are generated, not scraped
-- Profile enrichment generates plausible fake data — not real scraping
-- No pagination on matches page
-- Dark mode not fully tested on all pages
-- Job detail page (`/jobs/[id]`) uses basic styling — not yet redesigned
-
----
-
-## 📐 Architecture
+## Architecture
 
 ```
 Skopos/
@@ -166,8 +171,18 @@ Skopos/
 │   │   ├── cv/
 │   │   ├── matches/
 │   │   ├── brand/
-│   │   └── interview/
+│   │   ├── interview/
+│   │   └── applications/
 │   ├── api/             # API routes (Next.js Route Handlers)
+│   │   ├── auth/        # login, register
+│   │   ├── jobs/        # CRUD, scrape
+│   │   ├── cv/          # upload, enrich, ats-score, export
+│   │   ├── matches/     # score-all, score/[id]
+│   │   ├── brand/       # analyze, calendar
+│   │   ├── career/      # path, courses
+│   │   ├── interview/   # questions
+│   │   ├── applications/# CRUD
+│   │   └── dashboard/   # stats
 │   └── page.tsx         # landing page
 ├── components/
 │   ├── layout/          # Sidebar, Header
@@ -176,23 +191,31 @@ Skopos/
 │   ├── jobs/            # JobCard, JobFilters
 │   ├── matches/         # MatchCard
 │   ├── cv/              # CVUploader, CVPreview
-│   └── brand/           # BrandAnalysis
+│   ├── brand/           # BrandAnalysis, ContentCalendar
+│   └── applications/    # TrackApplicationButton
 ├── lib/
 │   ├── prisma.ts        # Prisma client singleton
 │   ├── auth.ts          # NextAuth config
-│   ├── scrapers/        # jobScraper, profileScraper
-│   ├── scoring/         # matchScorer
-│   └── brand/           # brandAnalyzer
+│   ├── rateLimit.ts     # In-memory rate limiter
+│   ├── middleware/       # withRateLimit helper
+│   ├── scrapers/        # jobScraper, profileScraper (GitHub real API)
+│   ├── scoring/         # matchScorer, atsScorer
+│   ├── brand/           # brandAnalyzer, contentCalendar
+│   └── career/          # courseRecommender
 ├── prisma/
 │   ├── schema.prisma    # DB schema
 │   ├── seed.ts          # 65-job seed data
 │   └── dev.db           # SQLite database
-└── types/index.ts       # Shared TypeScript types
+├── types/index.ts       # Shared TypeScript types
+├── Dockerfile           # Multi-stage production build
+├── docker-compose.yml   # Self-hosting config
+├── .github/workflows/   # CI/CD pipeline
+└── .env.example         # Environment template
 ```
 
 ---
 
-## 🚀 Getting Started
+## Getting Started
 
 ```bash
 cd Skopos
@@ -201,6 +224,12 @@ npx prisma generate
 npx prisma db push
 npx ts-node --compiler-options '{"module":"CommonJS"}' prisma/seed.ts
 npm run dev
+```
+
+### Docker
+
+```bash
+docker-compose up -d
 ```
 
 Open [http://localhost:3000](http://localhost:3000)

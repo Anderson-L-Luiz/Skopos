@@ -1,10 +1,33 @@
-import { NextResponse } from "next/server";
+import { NextResponse, NextRequest } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { generateMockJobs } from "@/lib/scrapers/jobScraper";
+import { expensiveOpLimiter } from "@/lib/rateLimit";
 
-export async function POST() {
+function getClientIp(request: Request): string {
+  if (request instanceof NextRequest) {
+    return (
+      request.headers.get("x-forwarded-for")?.split(",")[0].trim() ||
+      request.headers.get("x-real-ip") ||
+      "unknown"
+    );
+  }
+  return "unknown";
+}
+
+export async function POST(req: Request) {
+  // Rate limiting: 5 requests per minute per IP (expensive operation)
+  const clientIp = getClientIp(req);
+  const rateLimitResult = expensiveOpLimiter(clientIp);
+  if (!rateLimitResult.success) {
+    const retryAfter = Math.ceil((rateLimitResult.reset.getTime() - Date.now()) / 1000);
+    return NextResponse.json(
+      { error: "Too many scrape requests. Please try again later." },
+      { status: 429, headers: { "Retry-After": retryAfter.toString() } }
+    );
+  }
+
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 

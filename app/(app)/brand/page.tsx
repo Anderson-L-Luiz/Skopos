@@ -2,8 +2,9 @@
 import { useState } from "react";
 import { Header } from "@/components/layout/Header";
 import { BrandAnalysis } from "@/components/brand/BrandAnalysis";
-import { Loader2, Zap, Star, ArrowRight, Linkedin, Twitter, Github, Instagram } from "lucide-react";
-import type { BrandAnalysis as BrandAnalysisType } from "@/types";
+import { ContentCalendar } from "@/components/brand/ContentCalendar";
+import { Loader2, Zap, Star, ArrowRight, Linkedin, Twitter, Github, Instagram, Calendar } from "lucide-react";
+import type { BrandAnalysis as BrandAnalysisType, ContentCalendar as ContentCalendarType } from "@/types";
 import Link from "next/link";
 
 const platforms = [
@@ -15,7 +16,9 @@ const platforms = [
 
 export default function BrandPage() {
   const [analysis, setAnalysis] = useState<BrandAnalysisType | null>(null);
+  const [calendar, setCalendar] = useState<ContentCalendarType | null>(null);
   const [loading, setLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState<"analysis" | "calendar">("analysis");
 
   const runAnalysis = async () => {
     setLoading(true);
@@ -23,8 +26,18 @@ export default function BrandPage() {
     if (res.ok) {
       const data = await res.json();
       setAnalysis(data.analysis);
+      setActiveTab("analysis");
     }
     setLoading(false);
+  };
+
+  const loadCalendar = async () => {
+    const res = await fetch("/api/brand/calendar");
+    if (res.ok) {
+      const data = await res.json();
+      setCalendar(data.calendar);
+      setActiveTab("calendar");
+    }
   };
 
   return (
@@ -153,7 +166,7 @@ export default function BrandPage() {
 
         {analysis && !loading && (
           <div className="max-w-4xl">
-            <div className="flex items-center justify-between mb-5">
+            <div className="flex items-center justify-between mb-6">
               <div>
                 <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Analysis complete</p>
                 <h3 className="text-lg font-black text-slate-900">Your Brand Report</h3>
@@ -165,7 +178,40 @@ export default function BrandPage() {
                 <Zap className="w-3.5 h-3.5" /> Re-analyze
               </button>
             </div>
-            <BrandAnalysis analysis={analysis} />
+
+            {/* Tabs */}
+            <div className="flex gap-2 mb-6 border-b border-slate-200">
+              <button
+                onClick={() => setActiveTab("analysis")}
+                className={`px-4 py-3 text-sm font-semibold border-b-2 transition-colors ${
+                  activeTab === "analysis"
+                    ? "border-amber-500 text-amber-700"
+                    : "border-transparent text-slate-500 hover:text-slate-700"
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <Star className="w-4 h-4" />
+                  Brand Analysis
+                </div>
+              </button>
+              <button
+                onClick={loadCalendar}
+                className={`px-4 py-3 text-sm font-semibold border-b-2 transition-colors ${
+                  activeTab === "calendar"
+                    ? "border-purple-500 text-purple-700"
+                    : "border-transparent text-slate-500 hover:text-slate-700"
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <Calendar className="w-4 h-4" />
+                  Content Calendar
+                </div>
+              </button>
+            </div>
+
+            {/* Tab content */}
+            {activeTab === "analysis" && <BrandAnalysis analysis={analysis} />}
+            {activeTab === "calendar" && calendar && <ContentCalendar calendar={calendar} />}
           </div>
         )}
       </div>

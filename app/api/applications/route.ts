@@ -11,7 +11,13 @@ export async function GET() {
 
   const applications = await prisma.application.findMany({
     where: { userId },
-    include: { job: true },
+    include: {
+      job: true,
+      applicationNotes: { orderBy: { createdAt: "desc" }, take: 5 },
+      tasks: { orderBy: [{ completed: "asc" }, { createdAt: "desc" }] },
+      contacts: true,
+      coverLetters: { select: { id: true, tone: true, createdAt: true } },
+    },
     orderBy: { createdAt: "desc" },
   });
 

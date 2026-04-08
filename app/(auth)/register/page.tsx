@@ -1,8 +1,8 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { signIn } from "next-auth/react";
+import { signIn, getProviders } from "next-auth/react";
 import { Loader2, Mail, Lock, User, Eye, EyeOff, AlertCircle, CheckCircle2, ArrowRight, Briefcase, TrendingUp, Award } from "lucide-react";
 
 export default function RegisterPage() {
@@ -13,6 +13,19 @@ export default function RegisterPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [providers, setProviders] = useState<Record<string, { id: string; name: string }>>({});
+  const [oauthLoading, setOauthLoading] = useState<string | null>(null);
+
+  useEffect(() => {
+    getProviders().then((p) => { if (p) setProviders(p); });
+  }, []);
+
+  const handleOAuth = (providerId: string) => {
+    setOauthLoading(providerId);
+    signIn(providerId, { callbackUrl: "/dashboard" });
+  };
+
+  const oauthProviders = Object.values(providers).filter((p) => p.id !== "credentials");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -125,6 +138,33 @@ export default function RegisterPage() {
             <h1 className="text-2xl font-black text-slate-900 mb-1.5">Create your account</h1>
             <p className="text-slate-500 text-sm">Start your career intelligence journey today</p>
           </div>
+
+          {/* OAuth Buttons */}
+          {oauthProviders.length > 0 && (
+            <>
+              <div className="space-y-2.5 mb-6">
+                {oauthProviders.map((provider) => (
+                  <button
+                    key={provider.id}
+                    onClick={() => handleOAuth(provider.id)}
+                    disabled={oauthLoading !== null}
+                    className={`w-full py-2.5 px-4 rounded-xl text-sm font-semibold transition-all flex items-center justify-center gap-3 disabled:opacity-60 ${
+                      provider.id === "google" ? "bg-white border border-slate-200 hover:bg-slate-50 text-slate-700" :
+                      provider.id === "github" ? "bg-slate-900 hover:bg-slate-800 text-white" :
+                      "bg-black hover:bg-slate-900 text-white"
+                    }`}
+                  >
+                    {oauthLoading === provider.id ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                    Sign up with {provider.name}
+                  </button>
+                ))}
+              </div>
+              <div className="relative mb-6">
+                <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-slate-200" /></div>
+                <div className="relative flex justify-center text-xs"><span className="bg-slate-50 px-3 text-slate-400 font-medium">or register with email</span></div>
+              </div>
+            </>
+          )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
             {/* Name */}

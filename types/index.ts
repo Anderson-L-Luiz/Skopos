@@ -152,8 +152,75 @@ export interface Application {
   status: 'saved' | 'applied' | 'interviewing' | 'offered' | 'rejected';
   notes?: string | null;
   appliedAt?: Date | null;
+  followUpDate?: Date | null;
   createdAt: Date;
   job?: JobListing;
+  applicationNotes?: ApplicationNote[];
+  tasks?: ApplicationTask[];
+  contacts?: Contact[];
+  coverLetters?: CoverLetter[];
+}
+
+export interface ApplicationNote {
+  id: string;
+  applicationId: string;
+  content: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface ApplicationTask {
+  id: string;
+  applicationId: string;
+  title: string;
+  completed: boolean;
+  dueDate?: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface CoverLetter {
+  id: string;
+  userId: string;
+  applicationId?: string | null;
+  jobId: string;
+  job?: JobListing;
+  content: string;
+  tone: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export type ContactRelationship = 'recruiter' | 'hiring_manager' | 'referral' | 'colleague' | 'other';
+
+export interface Contact {
+  id: string;
+  userId: string;
+  name: string;
+  email?: string | null;
+  phone?: string | null;
+  company?: string | null;
+  role?: string | null;
+  linkedinUrl?: string | null;
+  relationship: ContactRelationship;
+  notes?: string | null;
+  applicationId?: string | null;
+  followUpDate?: Date | null;
+  lastContactedAt?: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface SalaryData {
+  roleTitle: string;
+  location?: string;
+  experienceLevel?: string;
+  salaryMin: number;
+  salaryMedian: number;
+  salaryMax: number;
+  currency: string;
+  dataPoints: number;
+  source: 'database' | 'ai' | 'combined';
 }
 
 export type ContentPlatform = "LinkedIn" | "Twitter" | "GitHub" | "Blog";

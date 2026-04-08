@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { scoreJob } from "@/lib/scoring/matchScorer";
+import { scoreJobWithAI } from "@/lib/scoring/aiScorer";
 
 export async function POST(req: Request, { params }: { params: { jobId: string } }) {
   const session = await getServerSession(authOptions);
@@ -21,12 +21,14 @@ export async function POST(req: Request, { params }: { params: { jobId: string }
   const userSkills: string[] = profile ? JSON.parse(profile.skills || "[]") : [];
   const jobSkills: string[] = JSON.parse(job.skills || "[]");
 
-  const result = scoreJob({
+  const result = await scoreJobWithAI({
     userSkills,
     userYearsExp: profile?.yearsExp || 0,
     userCurrentRole: profile?.currentRole || undefined,
+    cvText: profile?.cvRaw || undefined,
     jobSkills,
     jobTitle: job.title,
+    jobDescription: job.description,
     jobSalaryMin: job.salaryMin || undefined,
     jobSalaryMax: job.salaryMax || undefined,
     jobRemote: job.remote,

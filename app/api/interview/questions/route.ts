@@ -2,6 +2,8 @@ import { NextResponse, NextRequest } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { aiJSON } from "@/lib/ai/client";
+import { interviewQuestionsPrompt } from "@/lib/ai/prompts";
 import type { InterviewQuestion } from "@/types";
 
 const questionBank: Record<string, InterviewQuestion[]> = {
@@ -186,8 +188,31 @@ export async function GET(req: NextRequest) {
 
       if (job) {
         const skills = Array.isArray(job.skills) ? job.skills : JSON.parse(job.skills || "[]");
-        const roleSpecificQuestions = generateRoleSpecificQuestions(job.title, job.company, skills);
-        questions = [...roleSpecificQuestions];
+
+        // Try AI-generated questions first
+        try {
+          const aiQuestions = await aiJSON<InterviewQuestion[]>({
+            messages: interviewQuestionsPrompt(
+              job.title,
+              job.description,
+              skills,
+              category !== "all" ? category : "technical",
+              difficulty !== "all" ? difficulty : "medium"
+            ),
+            temperature: 0.3,
+          });
+
+          if (Array.isArray(aiQuestions) && aiQuestions.length > 0) {
+            questions = aiQuestions.map((q, i) => ({
+              ...q,
+              id: `ai_${i}`,
+            }));
+          }
+        } catch {
+          // Fall back to static role-specific questions
+          const roleSpecificQuestions = generateRoleSpecificQuestions(job.title, job.company, skills);
+          questions = [...roleSpecificQuestions];
+        }
       }
     } catch (error) {
       console.error("Error fetching job details:", error);

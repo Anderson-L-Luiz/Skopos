@@ -2,7 +2,7 @@ import { NextResponse, NextRequest } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { scoreATS } from "@/lib/scoring/atsScorer";
+import { scoreATSWithAI } from "@/lib/scoring/aiScorer";
 
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -33,13 +33,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Job not found" }, { status: 404 });
     }
 
-    // Score the CV against the job
-    const atsResult = scoreATS(profile.cvRaw, job.description);
+    // Score the CV against the job (AI-powered with heuristic fallback)
+    const jobSkills: string[] = JSON.parse(job.skills || "[]");
+    const atsResult = await scoreATSWithAI(profile.cvRaw, job.description, jobSkills);
 
     return NextResponse.json(atsResult);
   } catch (err) {
     console.error("ATS scoring error:", err);
-    const message = err instanceof Error ? err.message : "ATS scoring failed";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json({ error: "ATS scoring failed" }, { status: 500 });
   }
 }

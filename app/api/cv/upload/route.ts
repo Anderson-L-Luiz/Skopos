@@ -2,6 +2,7 @@ import { NextResponse, NextRequest } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { uploadFile, generateFileKey } from "@/lib/storage/fileStorage";
 import * as mammoth from "mammoth";
 
 async function extractTextFromPdf(buffer: Buffer): Promise<string> {
@@ -51,7 +52,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Only PDF and DOCX files are supported" }, { status: 400 });
     }
 
+    const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
     const bytes = await file.arrayBuffer();
+    if (bytes.byteLength > MAX_FILE_SIZE) {
+      return NextResponse.json({ error: "File too large. Maximum size is 10MB." }, { status: 413 });
+    }
     const buffer = Buffer.from(bytes);
 
     let cvRaw = "";
@@ -68,21 +73,31 @@ export async function POST(req: NextRequest) {
       cvRaw = `[File uploaded: ${filename}] — Text extraction produced minimal results. The file may be image-based or password-protected.`;
     }
 
+    // Store the file in persistent storage (local or S3)
+    const fileKey = generateFileKey(userId, filename);
+    const uploadResult = await uploadFile(fileKey, buffer, file.type);
+
     await prisma.profile.upsert({
       where: { userId },
       create: {
         userId,
-        cvFile: filename,
+        cvFile: fileKey,
         cvRaw,
         skills: "[]",
       },
       update: {
-        cvFile: filename,
+        cvFile: fileKey,
         cvRaw,
       },
     });
 
-    return NextResponse.json({ filename, message: "CV uploaded and parsed successfully", extractedLength: cvRaw.length });
+    return NextResponse.json({
+      filename,
+      fileKey,
+      storageBackend: uploadResult.backend,
+      message: "CV uploaded and parsed successfully",
+      extractedLength: cvRaw.length,
+    });
   } catch (err) {
     console.error("CV upload error:", err);
     return NextResponse.json({ error: "Upload failed" }, { status: 500 });

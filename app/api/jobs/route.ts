@@ -11,9 +11,9 @@ export async function GET(req: NextRequest) {
   const search = searchParams.get("search") || "";
   const source = searchParams.get("source") || "";
   const remote = searchParams.get("remote") || "";
-  const minSalary = parseInt(searchParams.get("minSalary") || "0");
-  const page = parseInt(searchParams.get("page") || "1");
-  const limit = parseInt(searchParams.get("limit") || "20");
+  const minSalary = Math.max(0, parseInt(searchParams.get("minSalary") || "0") || 0);
+  const page = Math.max(1, parseInt(searchParams.get("page") || "1") || 1);
+  const limit = Math.max(1, Math.min(100, parseInt(searchParams.get("limit") || "20") || 20));
   const skip = (page - 1) * limit;
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -21,17 +21,17 @@ export async function GET(req: NextRequest) {
 
   if (search) {
     where.OR = [
-      { title: { contains: search } },
-      { company: { contains: search } },
-      { description: { contains: search } },
+      { title: { contains: search, mode: "insensitive" } },
+      { company: { contains: search, mode: "insensitive" } },
+      { description: { contains: search, mode: "insensitive" } },
     ];
   }
   if (source && source !== "all") {
     where.source = source;
   }
-  if (remote === "remote") {
+  if (remote === "remote" || remote === "true" || remote === "yes") {
     where.remote = true;
-  } else if (remote === "onsite") {
+  } else if (remote === "onsite" || remote === "false") {
     where.remote = false;
   }
   if (minSalary > 0) {

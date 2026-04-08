@@ -3,7 +3,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   LayoutDashboard, Briefcase, FileText, Target, Star, GraduationCap, LogOut,
-  ChevronRight, Sparkles
+  ChevronRight, Sparkles, FileSignature, DollarSign, Users, ClipboardList, Award, BookOpen
 } from "lucide-react";
 import { signOut, useSession } from "next-auth/react";
 import { cn } from "@/lib/utils";
@@ -13,8 +13,14 @@ const navItems = [
   { href: "/jobs", label: "Jobs", icon: Briefcase, description: "Browse listings", badge: "65" },
   { href: "/cv", label: "CV Builder", icon: FileText, description: "Build & enrich" },
   { href: "/matches", label: "Matches", icon: Target, description: "Scored for you" },
+  { href: "/cover-letters", label: "Cover Letters", icon: FileSignature, description: "AI-generated" },
+  { href: "/applications", label: "Applications", icon: ClipboardList, description: "Track progress" },
+  { href: "/contacts", label: "Contacts", icon: Users, description: "Network CRM" },
+  { href: "/salary", label: "Salary Insights", icon: DollarSign, description: "Market data" },
   { href: "/brand", label: "Brand Advisor", icon: Star, description: "Online presence" },
   { href: "/interview", label: "Interview Prep", icon: GraduationCap, description: "Get prepared" },
+  { href: "/evaluations", label: "Evaluations", icon: Award, description: "A–F job grades" },
+  { href: "/stories", label: "Story Bank", icon: BookOpen, description: "STAR narratives" },
 ];
 
 export function Sidebar() {

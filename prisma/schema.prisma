@@ -2,8 +2,13 @@ generator client {
   provider = "prisma-client-js"
 }
 
+// Toggle between SQLite and PostgreSQL via DATABASE_URL in .env:
+// SQLite: DATABASE_URL=file:./dev.db (provider must be "sqlite")
+// PostgreSQL: DATABASE_URL=postgresql://skopos:skopos@localhost:5432/skopos (provider must be "postgresql")
+//
+// To switch: update provider below + DATABASE_URL in .env, then run: npx prisma db push
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -11,12 +16,75 @@ model User {
   id            String    @id @default(cuid())
   email         String    @unique
   name          String?
-  password      String
+  password      String    @default("")
+  image         String?
   createdAt     DateTime  @default(now())
   profile       Profile?
   applications  Application[]
   sessions      Session[]
+  accounts      Account[]
   jobMatches    JobMatch[]
+  coverLetters  CoverLetter[]
+  contacts      Contact[]
+  evaluations   Evaluation[]
+  stories       InterviewStory[]
+}
+
+model Evaluation {
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id])
+  jobId           String
+  job             Job      @relation(fields: [jobId], references: [id])
+  grade           String   // A, B, C, D, F
+  overallScore    Int      // 0-100 weighted
+  dimensions      String   // JSON: array of {name, weight, score, rationale}
+  roleSummary     String
+  cvMatch         String
+  levelStrategy   String
+  compResearch    String
+  personalization String
+  interviewPrep   String
+  createdAt       DateTime @default(now())
+
+  @@unique([userId, jobId])
+  @@index([userId])
+}
+
+model InterviewStory {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  title       String
+  situation   String
+  task        String
+  action      String
+  result      String
+  reflection  String?
+  tags        String   @default("[]")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([userId])
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
 }
 
 model Profile {
@@ -58,6 +126,8 @@ model Job {
   scrapedAt     DateTime @default(now())
   applications  Application[]
   matches       JobMatch[]
+  coverLetters  CoverLetter[]
+  evaluations   Evaluation[]
 }
 
 model JobMatch {
@@ -70,18 +140,27 @@ model JobMatch {
   category      String
   gapAnalysis   String   @default("{}")
   createdAt     DateTime @default(now())
+
+  @@unique([userId, jobId])
 }
 
 model Application {
-  id          String   @id @default(cuid())
-  userId      String
-  user        User     @relation(fields: [userId], references: [id])
-  jobId       String
-  job         Job      @relation(fields: [jobId], references: [id])
-  status      String   @default("saved")
-  notes       String?
-  appliedAt   DateTime?
-  createdAt   DateTime @default(now())
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id])
+  jobId           String
+  job             Job      @relation(fields: [jobId], references: [id])
+  status          String   @default("saved")
+  notes           String?
+  appliedAt       DateTime?
+  followUpDate    DateTime?
+  createdAt       DateTime @default(now())
+  applicationNotes ApplicationNote[]
+  tasks           ApplicationTask[]
+  coverLetters    CoverLetter[]
+  contacts        Contact[]
+
+  @@unique([userId, jobId])
 }
 
 model Session {
@@ -90,4 +169,78 @@ model Session {
   userId       String
   user         User     @relation(fields: [userId], references: [id])
   expires      DateTime
+}
+
+// ─── NEW MODELS ───
+
+model CoverLetter {
+  id            String       @id @default(cuid())
+  userId        String
+  user          User         @relation(fields: [userId], references: [id])
+  applicationId String?
+  application   Application? @relation(fields: [applicationId], references: [id])
+  jobId         String
+  job           Job          @relation(fields: [jobId], references: [id])
+  content       String
+  tone          String       @default("professional")
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+}
+
+model SalaryInsight {
+  id              String   @id @default(cuid())
+  roleTitle       String
+  location        String?
+  experienceLevel String?
+  salaryMin       Int
+  salaryMedian    Int
+  salaryMax       Int
+  currency        String   @default("USD")
+  source          String
+  dataPoints      Int      @default(0)
+  createdAt       DateTime @default(now())
+
+  @@unique([roleTitle, location, experienceLevel])
+}
+
+model Contact {
+  id              String       @id @default(cuid())
+  userId          String
+  user            User         @relation(fields: [userId], references: [id])
+  name            String
+  email           String?
+  phone           String?
+  company         String?
+  role            String?
+  linkedinUrl     String?
+  relationship    String       @default("other")
+  notes           String?
+  applicationId   String?
+  application     Application? @relation(fields: [applicationId], references: [id])
+  followUpDate    DateTime?
+  lastContactedAt DateTime?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  @@index([userId])
+}
+
+model ApplicationNote {
+  id            String      @id @default(cuid())
+  applicationId String
+  application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  content       String
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+}
+
+model ApplicationTask {
+  id            String      @id @default(cuid())
+  applicationId String
+  application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  title         String
+  completed     Boolean     @default(false)
+  dueDate       DateTime?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
 }

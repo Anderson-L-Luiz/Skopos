@@ -3,13 +3,54 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
-function generateHTMLCV(profile: any): string {
-  const enriched = profile.enrichedData ? JSON.parse(profile.enrichedData) : null;
-  const skills = Array.isArray(profile.skills) ? profile.skills : JSON.parse(profile.skills || "[]");
+function escapeHtml(str: string | undefined | null): string {
+  if (!str) return "";
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
 
-  const name = enriched?.linkedin?.name || profile.user?.name || "Your Name";
-  const headline = profile.headline || enriched?.linkedin?.headline || profile.currentRole || "Professional";
-  const summary = profile.summary || enriched?.linkedin?.summary || "";
+interface JobTailorContext {
+  title: string;
+  company: string;
+  description: string;
+  jobSkills: string[];
+}
+
+function tailorSkills(userSkills: string[], jobSkills: string[]): { ordered: string[]; matched: string[] } {
+  const norm = (s: string) => s.toLowerCase().trim();
+  const jobN = jobSkills.map(norm);
+  const matched = userSkills.filter((s) => jobN.includes(norm(s)));
+  const rest = userSkills.filter((s) => !jobN.includes(norm(s)));
+  return { ordered: [...matched, ...rest], matched };
+}
+
+function extractJDKeywords(description: string): string[] {
+  const stop = new Set(["the","and","for","with","you","are","our","this","that","will","have","from","your","into","they","their","them","but","not","all","any","can","may","who","what","how","when","where","why","which","its","also","more","than","etc","via","using","work","team","role","job"]);
+  const counts = new Map<string, number>();
+  for (const raw of description.toLowerCase().match(/[a-z][a-z+#.-]{2,}/g) || []) {
+    if (stop.has(raw) || raw.length < 4) continue;
+    counts.set(raw, (counts.get(raw) || 0) + 1);
+  }
+  return Array.from(counts.entries()).sort((a, b) => b[1] - a[1]).slice(0, 10).map(([w]) => w);
+}
+
+function generateHTMLCV(profile: any, job?: JobTailorContext): string {
+  const enriched = profile.enrichedData ? JSON.parse(profile.enrichedData) : null;
+  const rawSkills: string[] = Array.isArray(profile.skills) ? profile.skills : JSON.parse(profile.skills || "[]");
+
+  const tailor = job ? tailorSkills(rawSkills, job.jobSkills) : { ordered: rawSkills, matched: [] as string[] };
+  const skills = tailor.ordered;
+  const matchedSet = new Set(tailor.matched.map((s) => s.toLowerCase()));
+  const jdKeywords = job ? extractJDKeywords(job.description) : [];
+
+  const name = escapeHtml(enriched?.linkedin?.name || profile.user?.name || "Your Name");
+  const baseHeadline = profile.headline || enriched?.linkedin?.headline || profile.currentRole || "Professional";
+  const headline = escapeHtml(job ? `${baseHeadline} — tailored for ${job.title} @ ${job.company}` : baseHeadline);
+  const summary = escapeHtml(profile.summary || enriched?.linkedin?.summary || "");
 
   const experiences = enriched?.linkedin?.experience || [];
   const education = enriched?.linkedin?.education || [];
@@ -25,12 +66,12 @@ function generateHTMLCV(profile: any): string {
         <div style="margin-bottom: 16px;">
           <div style="display: flex; justify-content: space-between; align-items: flex-start;">
             <div>
-              <p style="font-weight: bold; margin: 0; font-size: 12px;">${exp.title}</p>
-              <p style="color: #666; margin: 4px 0 0 0; font-size: 11px;">${exp.company}</p>
+              <p style="font-weight: bold; margin: 0; font-size: 12px;">${escapeHtml(exp.title)}</p>
+              <p style="color: #666; margin: 4px 0 0 0; font-size: 11px;">${escapeHtml(exp.company)}</p>
             </div>
-            <span style="color: #888; font-size: 10px; white-space: nowrap;">${exp.duration}</span>
+            <span style="color: #888; font-size: 10px; white-space: nowrap;">${escapeHtml(exp.duration)}</span>
           </div>
-          ${exp.description ? `<p style="color: #555; margin: 6px 0 0 0; font-size: 11px; line-height: 1.4;">${exp.description}</p>` : ""}
+          ${exp.description ? `<p style="color: #555; margin: 6px 0 0 0; font-size: 11px; line-height: 1.4;">${escapeHtml(exp.description)}</p>` : ""}
         </div>
       `)
         .join("")}
@@ -45,10 +86,10 @@ function generateHTMLCV(profile: any): string {
         .map((edu: any) => `
         <div style="margin-bottom: 12px; display: flex; justify-content: space-between;">
           <div>
-            <p style="font-weight: bold; margin: 0; font-size: 12px;">${edu.degree}</p>
-            <p style="color: #666; margin: 2px 0 0 0; font-size: 11px;">${edu.institution}</p>
+            <p style="font-weight: bold; margin: 0; font-size: 12px;">${escapeHtml(edu.degree)}</p>
+            <p style="color: #666; margin: 2px 0 0 0; font-size: 11px;">${escapeHtml(edu.institution)}</p>
           </div>
-          <span style="color: #888; font-size: 10px;">${edu.year}</span>
+          <span style="color: #888; font-size: 10px;">${escapeHtml(edu.year)}</span>
         </div>
       `)
         .join("")}
@@ -57,11 +98,25 @@ function generateHTMLCV(profile: any): string {
 
   const skillsHtml = skills.length > 0
     ? `
-    <section style="margin-bottom: 24px;">
-      <h2 style="font-size: 14px; font-weight: bold; margin-bottom: 12px; border-bottom: 2px solid #4f46e5; padding-bottom: 4px; text-transform: uppercase; letter-spacing: 1px;">TECHNICAL SKILLS</h2>
+    <section style="margin-bottom: 24px;" data-section="skills">
+      <h2 style="font-size: 14px; font-weight: bold; margin-bottom: 12px; border-bottom: 2px solid #4f46e5; padding-bottom: 4px; text-transform: uppercase; letter-spacing: 1px;">${job ? "KEY SKILLS FOR THIS ROLE" : "TECHNICAL SKILLS"}</h2>
       <div style="display: flex; flex-wrap: wrap; gap: 6px;">
-        ${skills.map((s: string) => `<span style="display: inline-block; background: #f0f0f0; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: 500; color: #333;">${s}</span>`).join("")}
+        ${skills.map((s: string) => {
+          const isMatch = matchedSet.has(s.toLowerCase());
+          const bg = isMatch ? "#e0e7ff" : "#f0f0f0";
+          const color = isMatch ? "#3730a3" : "#333";
+          const weight = isMatch ? "700" : "500";
+          return `<span style="display: inline-block; background: ${bg}; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: ${weight}; color: ${color};">${escapeHtml(s)}</span>`;
+        }).join("")}
       </div>
+    </section>`
+    : "";
+
+  const jdKeywordsHtml = job && jdKeywords.length > 0
+    ? `
+    <section style="margin-bottom: 24px;" data-section="jd-keywords">
+      <h2 style="font-size: 14px; font-weight: bold; margin-bottom: 12px; border-bottom: 2px solid #4f46e5; padding-bottom: 4px; text-transform: uppercase; letter-spacing: 1px;">JOB DESCRIPTION KEYWORDS</h2>
+      <p style="font-size: 11px; color: #555; line-height: 1.5;">${jdKeywords.map((k) => escapeHtml(k)).join(" · ")}</p>
     </section>`
     : "";
 
@@ -77,8 +132,8 @@ function generateHTMLCV(profile: any): string {
         <div style="display: flex; flex-direction: column; gap: 6px;">
           ${github.topRepos.slice(0, 5).map((repo: any) => `
             <div style="font-size: 11px;">
-              <span style="font-weight: bold;">${repo.name}</span>
-              ${repo.description ? ` - <span style="color: #666;">${repo.description}</span>` : ""}
+              <span style="font-weight: bold;">${escapeHtml(repo.name)}</span>
+              ${repo.description ? ` - <span style="color: #666;">${escapeHtml(repo.description)}</span>` : ""}
               <span style="color: #888; margin-left: 4px;">★ ${repo.stars}</span>
             </div>
           `).join("")}
@@ -186,6 +241,7 @@ function generateHTMLCV(profile: any): string {
         </div>
 
         ${skillsHtml}
+        ${jdKeywordsHtml}
         ${experienceHtml}
         ${educationHtml}
         ${githubHtml}
@@ -196,7 +252,7 @@ function generateHTMLCV(profile: any): string {
   `;
 }
 
-export async function GET() {
+export async function GET(req: Request) {
   const session = await getServerSession(authOptions);
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
@@ -216,7 +272,21 @@ export async function GET() {
       return NextResponse.json({ error: "Profile not found" }, { status: 404 });
     }
 
-    const html = generateHTMLCV(profile);
+    const jobId = new URL(req.url).searchParams.get("jobId");
+    let jobCtx: JobTailorContext | undefined;
+    if (jobId) {
+      const job = await prisma.job.findUnique({ where: { id: jobId } });
+      if (job) {
+        jobCtx = {
+          title: job.title,
+          company: job.company,
+          description: job.description,
+          jobSkills: JSON.parse(job.skills || "[]"),
+        };
+      }
+    }
+
+    const html = generateHTMLCV(profile, jobCtx);
 
     return new NextResponse(html, {
       headers: {
@@ -226,7 +296,6 @@ export async function GET() {
     });
   } catch (err) {
     console.error("CV export error:", err);
-    const message = err instanceof Error ? err.message : "Export failed";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json({ error: "Export failed" }, { status: 500 });
   }
 }

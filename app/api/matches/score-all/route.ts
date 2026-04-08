@@ -2,7 +2,8 @@ import { NextResponse, NextRequest } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { scoreJob } from "@/lib/scoring/matchScorer";
+import { scoreJobWithAI } from "@/lib/scoring/aiScorer";
+import { buildEvaluation } from "@/lib/scoring/evaluator";
 import { expensiveOpLimiter } from "@/lib/rateLimit";
 
 function getClientIp(request: Request): string {
@@ -33,21 +34,28 @@ export async function POST(req: Request) {
 
   const userId = (session.user as { id: string }).id;
 
+  const url0 = new URL(req.url);
+  const take = Math.max(1, Math.min(50, parseInt(url0.searchParams.get("limit") || "50") || 50));
   const [profile, jobs] = await Promise.all([
     prisma.profile.findUnique({ where: { userId } }),
-    prisma.job.findMany({ take: 50, orderBy: { trustScore: "desc" } }),
+    prisma.job.findMany({ take, orderBy: { trustScore: "desc" } }),
   ]);
 
   const userSkills: string[] = profile ? JSON.parse(profile.skills || "[]") : [];
 
+  const withEvaluations = url0.searchParams.get("withEvaluations") === "true";
+
   let created = 0;
+  let evaluationsUpserted = 0;
   for (const job of jobs) {
     const jobSkills: string[] = JSON.parse(job.skills || "[]");
-    const result = scoreJob({
+    const result = await scoreJobWithAI({
       userSkills,
       userYearsExp: profile?.yearsExp || 0,
+      cvText: profile?.cvRaw || undefined,
       jobSkills,
       jobTitle: job.title,
+      jobDescription: job.description,
       jobSalaryMin: job.salaryMin || undefined,
       jobSalaryMax: job.salaryMax || undefined,
       jobRemote: job.remote,
@@ -73,7 +81,42 @@ export async function POST(req: Request) {
       });
       created++;
     }
+
+    if (withEvaluations) {
+      const report = buildEvaluation({
+        userSkills,
+        userYearsExp: profile?.yearsExp || 0,
+        userCurrentRole: profile?.currentRole || undefined,
+        userHeadline: profile?.headline || undefined,
+        cvText: profile?.cvRaw || undefined,
+        jobTitle: job.title,
+        jobCompany: job.company,
+        jobDescription: job.description,
+        jobSkills,
+        jobLocation: job.location || undefined,
+        jobRemote: job.remote,
+        jobSalaryMin: job.salaryMin || undefined,
+        jobSalaryMax: job.salaryMax || undefined,
+      });
+      const data = {
+        grade: report.grade,
+        overallScore: report.overallScore,
+        dimensions: JSON.stringify(report.dimensions),
+        roleSummary: report.roleSummary,
+        cvMatch: report.cvMatch,
+        levelStrategy: report.levelStrategy,
+        compResearch: report.compResearch,
+        personalization: report.personalization,
+        interviewPrep: report.interviewPrep,
+      };
+      await prisma.evaluation.upsert({
+        where: { userId_jobId: { userId, jobId: job.id } },
+        create: { userId, jobId: job.id, ...data },
+        update: data,
+      });
+      evaluationsUpserted++;
+    }
   }
 
-  return NextResponse.json({ scored: jobs.length, created });
+  return NextResponse.json({ scored: jobs.length, created, evaluationsUpserted });
 }
